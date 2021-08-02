@@ -43,10 +43,10 @@ mkValidator param datum () ctx = traceIfFalse "beneficiary's signature missing" 
         info = scriptContextTxInfo ctx
 
         signedByBeneficiary :: Bool
-        signedByBeneficiary = param `x` txInfoSignatories info
+        signedByBeneficiary = param `elem` txInfoSignatories info
 
         deadlineReached :: Bool
-        deadlineReached = from datum `time` txInfoValidRange info
+        deadlineReached = from datum `contains` txInfoValidRange info
 
 data Vesting
 instance Scripts.ValidatorTypes Vesting where
@@ -100,7 +100,7 @@ grab = do
                 lookups = Constraints.unspentOutputs utxos        <>
                           Constraints.otherScript (validator pkh)
                 tx :: TxConstraints Void Void
-                tx      = mconcat [mustSpendScriptOutput oref $ Redeemer $ PlutusTx.toData () | oref <- orefs] <>
+                tx      = mconcat [mustSpendScriptOutput oref $ Redeemer $ PlutusTx.toBuiltinData () | oref <- orefs] <>
                           mustValidateIn (from now)
             ledgerTx <- submitTxConstraintsWith @Void lookups tx
             void $ awaitTxConfirmed $ txId ledgerTx
@@ -111,7 +111,7 @@ grab = do
         Nothing -> False
         Just h  -> case Map.lookup h $ txData $ txOutTxTx o of
             Nothing        -> False
-            Just (Datum e) -> case PlutusTx.fromData e of
+            Just (Datum e) -> case PlutusTx.fromBuiltinData e of
                 Nothing -> False
                 Just d  -> d <= now
 
