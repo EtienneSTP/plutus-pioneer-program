@@ -16,6 +16,7 @@ import Ledger.Ada            as Ada
 import Ledger.Constraints    as Constraints
 import Plutus.Contract       as Contract
 import Plutus.Trace.Emulator as Emulator
+import Wallet.Emulator.Wallet
 
 data PayParams = PayParams
     { ppRecipient :: PubKeyHash
@@ -28,14 +29,26 @@ payContract :: Contract () PaySchema Text ()
 payContract = do
     pp <- endpoint @"pay"
     let tx = mustPayToPubKey (ppRecipient pp) $ lovelaceValueOf $ ppLovelace pp
-    void $ submitTx tx
+    handleError (\err -> Contract.logInfo $ "caught error: " ++ unpack err) $ void $ submitTx tx
     payContract
 
 -- A trace that invokes the pay endpoint of payContract on Wallet 1 twice, each time with Wallet 2 as
 -- recipient, but with amounts given by the two arguments. There should be a delay of one slot
 -- after each endpoint call.
 payTrace :: Integer -> Integer -> EmulatorTrace ()
-payTrace _ _ = undefined -- IMPLEMENT ME!
+payTrace x y = do
+    h <- activateContractWallet (Wallet 1) payContract
+    let pkh = pubKeyHash $ walletPubKey $ Wallet 2
+    callEndpoint @"pay" h $ PayParams
+        { ppRecipient = pkh
+        , ppLovelace  = x
+        }
+    void $ Emulator.waitNSlots 1
+    callEndpoint @"pay" h $ PayParams
+        { ppRecipient = pkh
+        , ppLovelace  = y
+        }
+    void $ Emulator.waitNSlots 1
 
 payTest1 :: IO ()
 payTest1 = runEmulatorTraceIO $ payTrace 1000000 2000000

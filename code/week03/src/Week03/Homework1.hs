@@ -121,7 +121,7 @@ grab = do
             lookups = Constraints.unspentOutputs utxos1 P.<>
                       Constraints.otherScript validator
             tx :: TxConstraints Void Void
-            tx      = mconcat [mustSpendScriptOutput oref $ Redeemer $ PlutusTx.toData () | oref <- orefs] P.<>
+            tx      = mconcat [mustSpendScriptOutput oref $ Redeemer $ PlutusTx.toBuiltinData () | oref <- orefs] P.<>
                       mustValidateIn (to now)
         void $ submitTxConstraintsWith @Void lookups tx
     unless (Map.null utxos2) $ do
@@ -129,7 +129,7 @@ grab = do
             lookups = Constraints.unspentOutputs utxos2 P.<>
                       Constraints.otherScript validator
             tx :: TxConstraints Void Void
-            tx      = mconcat [mustSpendScriptOutput oref $ Redeemer $ PlutusTx.toData () | oref <- orefs] P.<>
+            tx      = mconcat [mustSpendScriptOutput oref $ Redeemer $ PlutusTx.toBuiltinData () | oref <- orefs] P.<>
                       mustValidateIn (from now)
         void $ submitTxConstraintsWith @Void lookups tx
   where
@@ -138,7 +138,7 @@ grab = do
         Nothing -> False
         Just h  -> case Map.lookup h $ txData $ txOutTxTx o of
             Nothing        -> False
-            Just (Datum e) -> maybe False p $ PlutusTx.fromData e
+            Just (Datum e) -> maybe False p $ PlutusTx.fromBuiltinData e
 
 endpoints :: Contract () VestingSchema Text ()
 endpoints = (give' `select` grab') >> endpoints

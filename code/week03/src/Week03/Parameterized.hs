@@ -120,7 +120,7 @@ grab d = do
                         lookups = Constraints.unspentOutputs utxos      <>
                                   Constraints.otherScript (validator p)
                         tx :: TxConstraints Void Void
-                        tx      = mconcat [mustSpendScriptOutput oref $ Redeemer $ PlutusTx.toData () | oref <- orefs] <>
+                        tx      = mconcat [mustSpendScriptOutput oref $ Redeemer $ PlutusTx.toBuiltinData () | oref <- orefs] <>
                                   mustValidateIn (from now)
                     ledgerTx <- submitTxConstraintsWith @Void lookups tx
                     void $ awaitTxConfirmed $ txId ledgerTx
