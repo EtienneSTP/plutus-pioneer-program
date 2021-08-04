@@ -39,13 +39,22 @@ import           Wallet.Emulator.Wallet
 -- This policy should only allow minting (or burning) of tokens if the owner of the specified PubKeyHash
 -- has signed the transaction and if the specified deadline has not passed.
 mkPolicy :: PubKeyHash -> POSIXTime -> () -> ScriptContext -> Bool
-mkPolicy pkh deadline () ctx = True -- FIX ME!
+mkPolicy pkh deadline () ctx =
+    traceIfFalse "signature missing" (txSignedBy info pkh) &&
+    traceIfFalse "deadline passed"   (to deadline `contains` txInfoValidRange info)
+  where
+    info = scriptContextTxInfo ctx
 
 policy :: PubKeyHash -> POSIXTime -> Scripts.MintingPolicy
-policy pkh deadline = undefined -- IMPLEMENT ME!
+policy pkh deadline = mkMintingPolicyScript $
+    $$(PlutusTx.compile [|| \pkh' deadline' -> Scripts.wrapMintingPolicy $ mkPolicy pkh' deadline' ||])
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode pkh
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode deadline
 
 curSymbol :: PubKeyHash -> POSIXTime -> CurrencySymbol
-curSymbol pkh deadline = undefined -- IMPLEMENT ME!
+curSymbol pkh deadline = scriptCurrencySymbol $ policy pkh deadline
 
 data MintParams = MintParams
     { mpTokenName :: !TokenName
@@ -65,10 +74,10 @@ mint mp = do
         else do
             let val     = Value.singleton (curSymbol pkh deadline) (mpTokenName mp) (mpAmount mp)
                 lookups = Constraints.mintingPolicy $ policy pkh deadline
-                tx      = Constraints.mustMintValue val <> Constraints.mustValidateIn (to $ now + 5000)
-            ledgerTx <- submitTxConstraintsWith @Void lookups tx
-            void $ awaitTxConfirmed $ txId ledgerTx
-            Contract.logInfo @String $ printf "forged %s" (show val)
+                tx      = Constraints.mustMintValue val <> Constraints.mustValidateIn (to $ now + 5000) -- to deadline: convert = start of 10 slot, converted back to POSIX time,
+            ledgerTx <- submitTxConstraintsWith @Void lookups tx                                        -- to end of 10 slot. To deadline interval stop at beginning of slot 10
+            void $ awaitTxConfirmed $ txId ledgerTx                                                     -- but validity interval only stop at the end of slot 10
+            Contract.logInfo @String $ printf "forged %s" (show val)                                    -- Plutus works with POSIX time while transaction are based on slots. Conversion twice
 
 endpoints :: Contract () SignedSchema Text ()
 endpoints = mint' >> endpoints
